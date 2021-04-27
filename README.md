@@ -1,9 +1,9 @@
-# Notary version2 prototype2
+# Notary version 2 - prototype 2
 
 Launch a notary sandbox with:
 
 ```shell
-docker-compose up -d
+docker-compose up -d --build
 docker-compose exec client /bin/bash
 ```
 
@@ -13,15 +13,6 @@ Setup client:
 ln -s /certs/reg-ca/ca.crt /usr/local/share/ca-certificates/reg-ca.crt
 update-ca-certificates
 mkdir -p ~/.docker
-cat >~/.docker/nv2.json <<EOF
-{
-  "enabled": true,
-  "verificationCerts": [
-  ],
-  "insecureRegistries": [
-  ]
-}
-EOF
 ```
 
 Setup nv2 folder with signing key and cli:
@@ -84,6 +75,35 @@ cat >~/.docker/nv2.json <<EOF
 }
 EOF
 docker pull $IMAGE
+```
+
+Create a sample SBoM artifact:
+
+```shell
+echo '{"version": "0.0.0.0", "artifact": "net-monitor:v1", "contents": "good"}' > sbom.json
+oras push $REPO \
+  --artifact-type application/x.example.sbom.v0 \
+  --artifact-reference $IMAGE \
+  --export-manifest sbom-manifest.json \
+  ./sbom.json:application/tar
+oras discover $IMAGE
+```
+
+Sign the SBoM:
+
+```shell
+DIGEST=$(oras discover \
+    --artifact-type application/x.example.sbom.v0 \
+    --output-json \
+    $IMAGE | jq -r .references[0].digest)
+nv2 sign \
+  -m x509 \
+  -k wabbit-networks.key \
+  -c wabbit-networks.crt \
+  --push \
+  --push-reference oci://${REPO}@${DIGEST} \
+  file:sbom-manifest.json
+oras discover ${REPO}@${DIGEST}
 ```
 
 Exit the sandbox:

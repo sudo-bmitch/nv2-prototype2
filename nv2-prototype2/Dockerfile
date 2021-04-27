@@ -41,6 +41,7 @@ RUN apk add \
       bash \
       curl \
       git \
+      jq \
       make \
       openssl
 
